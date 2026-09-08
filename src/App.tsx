@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, BarChart3, Bell, Check, ChevronLeft, ChevronRight,
   CircleUserRound, Clock3, Eye, EyeOff, LayoutDashboard, LockKeyhole,
-  LogOut, Mail, Minus, Plus, Radio, Search, ShoppingBag, Sparkles,
+  LogOut, Mail, Minus, Plus, Search, ShoppingBag, Sparkles,
   Table2, UtensilsCrossed, WalletCards, X, Zap,
 } from 'lucide-react'
 import { menuItems, peso, type MenuItem } from './data'
 import logoColor from './assets/logocolor.svg'
 import logoWhite from './assets/logowhite.svg'
+import Landing from './Landing'
 
 type Cart = Record<number, number>
 type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Completed'
@@ -36,6 +37,7 @@ function Logo({ light = false, compact = false }: { light?: boolean; compact?: b
 function go(path: string) {
   window.history.pushState({}, '', path)
   window.dispatchEvent(new PopStateEvent('popstate'))
+  window.scrollTo({ top: 0, behavior: 'instant' })
 }
 
 function hasStaffSession() {
@@ -61,7 +63,7 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 
   return <main className="login-page">
     <section className="login-story">
-      <button className="login-logo" onClick={() => go('/')}><Logo light /></button>
+      <div className="login-logo"><Logo light /></div>
       <div className="story-copy">
         <span className="story-label"><Sparkles size={14} /> STAFF WORKSPACE</span>
         <h1>Every order,<br /><em>right on cue.</em></h1>
@@ -90,38 +92,6 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
       </form>
       <p className="login-help">Need help? <button type="button">Contact support</button></p>
     </section>
-  </main>
-}
-
-function Landing() {
-  return <main className="landing">
-    <nav className="nav shell"><Logo /><div className="nav-links"><a href="#how">How it works</a><a href="#business">For businesses</a></div><button className="nav-cta" onClick={() => go('/order/kape-ni-juan?table=T01')}>Try the demo <ArrowRight size={16} /></button></nav>
-
-    <section className="hero shell">
-      <div className="hero-copy">
-        <div className="eyebrow"><span><Zap size={13} fill="currentColor" /></span> No app. No camera. Just tap.</div>
-        <h1>Your next order is <em>one tap</em> away.</h1>
-        <p>Turn every table into a faster ordering experience. Customers tap, browse, and order—while your team keeps everything moving.</p>
-        <div className="hero-actions"><button className="primary" onClick={() => go('/order/kape-ni-juan?table=T01')}>Tap into the demo <ArrowRight size={18} /></button><button className="text-button" onClick={() => go('/dashboard/orders')}>View staff dashboard <ChevronRight size={18} /></button></div>
-        <div className="trust-row"><div className="avatars"><span>MJ</span><span>AK</span><span>RL</span></div><p><b>Built for local favorites</b><br />Simple enough for the busiest lunch rush.</p></div>
-      </div>
-      <div className="hero-visual">
-        <div className="orbit orbit-one" /><div className="orbit orbit-two" />
-        <div className="nfc-card"><div className="card-top"><Logo light /><span>T01</span></div><div className="nfc-rings"><Radio size={66} strokeWidth={1.2} /></div><h3>Tap your phone<br />to order</h3><p>or scan the QR code</p><div className="fake-qr">▦</div></div>
-        <div className="float-pill float-one"><Check size={16} /> No app needed</div>
-        <div className="float-pill float-two"><Sparkles size={16} /> Menu in seconds</div>
-      </div>
-    </section>
-
-    <section className="how" id="how"><div className="shell"><div className="section-heading"><p>FROM TABLE TO KITCHEN</p><h2>Ordering, without the waiting.</h2><span>Everything your customers need, right where they’re sitting.</span></div><div className="steps">
-      <div className="step"><div className="step-icon coral"><Radio /></div><small>01</small><h3>Tap</h3><p>A quick phone tap opens your menu. A QR code is always there as backup.</p></div>
-      <div className="step"><div className="step-icon yellow"><UtensilsCrossed /></div><small>02</small><h3>Browse & order</h3><p>Guests explore the menu, customize their cart, and order from the table.</p></div>
-      <div className="step"><div className="step-icon green"><Bell /></div><small>03</small><h3>Make it happen</h3><p>Your team receives a clear, table-linked order and keeps the guest updated.</p></div>
-    </div></div></section>
-
-    <section className="business shell" id="business"><div><p className="mini-title">BUILT FOR THE REAL WORLD</p><h2>Fewer mix-ups.<br /><em>More regulars.</em></h2></div><div className="business-points"><div><Clock3 /><span><b>Faster table turns</b><small>Guests order when they’re ready.</small></span></div><div><ShoppingBag /><span><b>Clearer orders</b><small>Items and table numbers, all in one place.</small></span></div><div><WalletCards /><span><b>Easy to start</b><small>No new hardware or customer app.</small></span></div></div></section>
-
-    <footer><div className="shell"><Logo light /><p>Made with care for small food businesses in the Philippines.</p><button onClick={() => go('/order/kape-ni-juan?table=T01')}>Open demo menu <ArrowRight size={16} /></button></div></footer>
   </main>
 }
 
@@ -175,9 +145,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 export default function App() {
   const [, render] = useState(0)
   const [authenticated, setAuthenticated] = useState(hasStaffSession)
-  useState(() => { window.addEventListener('popstate', () => render(v => v + 1)) })
+  useEffect(() => {
+    const onPopState = () => render(value => value + 1)
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
   if (location.pathname.startsWith('/order/')) return <OrderPage />
   if (location.pathname === '/login') return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
   if (location.pathname.startsWith('/dashboard')) return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
-  return <Landing />
+  return <Landing onNavigate={go} />
 }
