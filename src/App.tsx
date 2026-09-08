@@ -6,8 +6,8 @@ import {
   Table2, UtensilsCrossed, WalletCards, X, Zap,
 } from 'lucide-react'
 import { menuItems, peso, type MenuItem } from './data'
-import tappoLogo from './assets/tappo logo.svg'
-import tappoIcon from './assets/tappo icon.svg'
+import logoColor from './assets/logocolor.svg'
+import logoWhite from './assets/logowhite.svg'
 
 type Cart = Record<number, number>
 type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Completed'
@@ -25,12 +25,11 @@ const DEMO_PASSWORD = 'tapcard123'
 const SESSION_KEY = 'tapcard_staff_session'
 
 function Logo({ light = false, compact = false }: { light?: boolean; compact?: boolean }) {
-  return <button className={`logo ${light ? 'logo-light' : ''} ${compact ? 'logo-compact' : ''}`} onClick={() => go('/')} aria-label="Tappo home">
+  return <button className={`logo ${light ? 'logo-light' : ''} ${compact ? 'logo-compact' : ''}`} onClick={() => go('/')} aria-label="AliTapTap home">
     <span className="brand-mark">
-      <img className="brand-logo-full" src={tappoLogo} alt="" />
-      <img className="brand-logo-icon" src={tappoIcon} alt="" />
+      <img className="brand-logo" src={light ? logoWhite : logoColor} alt="" />
     </span>
-    <span className="brand-name">tappo</span>
+    <span className="brand-name">AliTapTap</span>
   </button>
 }
 
