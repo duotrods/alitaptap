@@ -5,3 +5,10 @@ dist
 !.env.example
 *.local
 .DS_Store
+
+
+.env.local
+.env.example
+
+/tests
+

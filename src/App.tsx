@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowRight, BarChart3, Bell, Check, ChevronLeft, ChevronRight,
   CircleUserRound, Clock3, Eye, EyeOff, LayoutDashboard, LockKeyhole,
-  LogOut, Mail, Minus, Plus, Search, ShoppingBag, Sparkles,
+  LogOut, Mail, Minus, Plus, ShoppingBag, Sparkles,
   Table2, UtensilsCrossed, WalletCards, X, Zap,
 } from 'lucide-react'
-import { menuItems, peso, type MenuItem } from './data'
+import { peso } from './data'
+import { loadMenu, MenuError, type MenuItem, type StoreMenu } from './lib/menu'
 import logoColor from './assets/logocolor.svg'
 import logoWhite from './assets/logowhite.svg'
 import Landing from './Landing'
 
-type Cart = Record<number, number>
+type Cart = Record<string, number>
 type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Completed'
 type DemoOrder = { code: string; table: string; items: string; total: number; age: string; status: OrderStatus }
 
@@ -96,36 +97,91 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 }
 
 function OrderPage() {
-  const [category, setCategory] = useState('All')
+  const [category, setCategory] = useState('')
   const [cart, setCart] = useState<Cart>({})
   const [cartOpen, setCartOpen] = useState(false)
-  const categories = ['All', 'Coffee', 'Refreshers', 'Bakes']
-  const list = category === 'All' ? menuItems : menuItems.filter(i => i.category === category)
+  const [attempt, setAttempt] = useState(0)
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'ready'; menu: StoreMenu } | { status: 'error'; error: MenuError }
+  >({ status: 'loading' })
+  const slug = location.pathname.slice('/order/'.length)
+  const tableCode = new URLSearchParams(location.search).get('table')
+
+  useEffect(() => {
+    let current = true
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 15000)
+    setState({ status: 'loading' })
+
+    async function fetchMenu() {
+      try {
+        const { supabase } = await import('./lib/supabase')
+        const menu = await loadMenu(supabase, slug, tableCode, controller.signal)
+        if (current) setState({ status: 'ready', menu })
+      } catch (error) {
+        if (current) setState({
+          status: 'error',
+          error: error instanceof MenuError ? error : new MenuError(
+            'connection', 'We couldn’t load the menu. Please try again or ask a staff member for help.',
+          ),
+        })
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    }
+
+    void fetchMenu()
+    return () => {
+      current = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [slug, tableCode, attempt])
+
+  const menu = state.status === 'ready' ? state.menu : null
+  const items = menu?.items ?? []
+  const list = category ? items.filter(item => item.category_id === category) : items
   const count = Object.values(cart).reduce((a, b) => a + b, 0)
-  const total = menuItems.reduce((sum, item) => sum + item.price * (cart[item.id] || 0), 0)
-  const update = (id: number, delta: number) => setCart(old => ({ ...old, [id]: Math.max(0, (old[id] || 0) + delta) }))
-  const table = new URLSearchParams(location.search).get('table') || 'T01'
+  const total = items.reduce((sum, item) => sum + Math.round(item.price * 100) * (cart[item.id] || 0), 0) / 100
+  const update = (id: string, delta: number) => setCart(old => ({ ...old, [id]: Math.max(0, Math.min(99, (old[id] || 0) + delta)) }))
+  const initials = menu?.store.name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('')
 
   return <main className="order-page">
-    <header className="order-header"><div className="order-shell"><button className="back" onClick={() => go('/')}><ChevronLeft /> Back</button><Logo /><button className="cart-button" onClick={() => setCartOpen(true)}><ShoppingBag size={19} />{count > 0 && <span>{count}</span>}</button></div></header>
-    <section className="store-hero"><div className="order-shell"><div className="store-monogram">KJ</div><div><p className="open-now"><i /> OPEN NOW · UNTIL 9 PM</p><h1>Kape ni Juan</h1><p>Local coffee, familiar comfort.</p></div><div className="table-chip"><Table2 size={17} /><span>Ordering for<small>{table.replace('T', 'Table ')}</small></span></div></div></section>
-    <section className="menu-section order-shell"><div className="menu-intro"><div><h2>What are you craving?</h2><p>Freshly made, just for you.</p></div><button className="search"><Search size={19} /></button></div>
-      <div className="categories">{categories.map(c => <button className={category === c ? 'active' : ''} onClick={() => setCategory(c)} key={c}>{c}</button>)}</div>
-      <div className="menu-grid">{list.map(item => <MenuCard key={item.id} item={item} quantity={cart[item.id] || 0} update={update} />)}</div>
-    </section>
-    {count > 0 && <button className="floating-cart" onClick={() => setCartOpen(true)}><span><ShoppingBag size={18} /> {count} {count === 1 ? 'item' : 'items'}</span><b>View order · {peso(total)}</b></button>}
-    {cartOpen && <CartPanel cart={cart} update={update} total={total} close={() => setCartOpen(false)} />}
+    <header className="order-header"><div className="order-shell"><button className="back" onClick={() => go('/')}><ChevronLeft /> Back</button><Logo /><button className="cart-button" disabled={!menu} onClick={() => setCartOpen(true)} aria-label="Open cart"><ShoppingBag size={19} />{count > 0 && <span>{count}</span>}</button></div></header>
+    {state.status === 'loading' && <section className="menu-message order-shell" role="status"><h1>Loading the menu…</h1><p>Finding something good for your table.</p></section>}
+    {state.status === 'error' && <section className="menu-message order-shell" role="alert">
+      <h1>{state.error.kind === 'table' ? 'Check your table link' : state.error.kind === 'store' ? 'Menu unavailable' : 'Unable to load the menu'}</h1>
+      <p>{state.error.message}</p>
+      <button onClick={() => setAttempt(value => value + 1)}>Try again</button>
+    </section>}
+    {menu && <>
+      <section className="store-hero"><div className="order-shell"><div className="store-monogram">{initials}</div><div><p className="open-now">OUR MENU</p><h1>{menu.store.name}</h1><p>{menu.store.description}</p></div><div className="table-chip"><Table2 size={17} /><span>Ordering for<small>{menu.table.label}</small></span></div></div></section>
+      <section className="menu-section order-shell"><div className="menu-intro"><div><h2>What are you craving?</h2><p>Freshly made, just for you.</p></div></div>
+        <div className="categories" aria-label="Menu categories">
+          <button className={!category ? 'active' : ''} aria-pressed={!category} onClick={() => setCategory('')}>All</button>
+          {menu.categories.map(item => <button className={category === item.id ? 'active' : ''} aria-pressed={category === item.id} onClick={() => setCategory(item.id)} key={item.id}>{item.name}</button>)}
+        </div>
+        <div className="menu-grid">{list.map(item => <MenuCard key={item.id} item={item} category={menu.categories.find(value => value.id === item.category_id)?.name ?? 'Menu'} quantity={cart[item.id] || 0} update={update} />)}</div>
+        {!list.length && <div className="menu-message" role="status"><h2>No items available right now</h2><p>{category ? 'Try another category.' : 'Please check with a staff member.'}</p></div>}
+      </section>
+      {count > 0 && <button className="floating-cart" onClick={() => setCartOpen(true)}><span><ShoppingBag size={18} /> {count} {count === 1 ? 'item' : 'items'}</span><b>View order · {peso(total)}</b></button>}
+      {cartOpen && <CartPanel items={items} tableLabel={menu.table.label} cart={cart} update={update} total={total} close={() => setCartOpen(false)} />}
+    </>}
   </main>
 }
 
-function MenuCard({ item, quantity, update }: { item: MenuItem; quantity: number; update: (id: number, delta: number) => void }) {
-  return <article className="menu-card"><div className="food-art" style={{ background: item.color }}><span>{item.emoji}</span>{item.popular && <b>POPULAR</b>}</div><div className="food-copy"><small>{item.category}</small><h3>{item.name}</h3><p>{item.description}</p><div><strong>{peso(item.price)}</strong>{quantity === 0 ? <button onClick={() => update(item.id, 1)} aria-label={`Add ${item.name}`}><Plus /></button> : <div className="quantity"><button onClick={() => update(item.id, -1)}><Minus /></button><b>{quantity}</b><button onClick={() => update(item.id, 1)}><Plus /></button></div>}</div></div></article>
+function MenuCard({ item, category, quantity, update }: { item: MenuItem; category: string; quantity: number; update: (id: string, delta: number) => void }) {
+  return <article className="menu-card"><div className="food-art" style={{ background: item.color }}><span>{item.emoji}</span>{item.popular && <b>POPULAR</b>}</div><div className="food-copy"><small>{category}</small><h3>{item.name}</h3><p>{item.description}</p><div><strong>{peso(item.price)}</strong>{quantity === 0 ? <button onClick={() => update(item.id, 1)} aria-label={`Add ${item.name}`}><Plus /></button> : <div className="quantity"><button onClick={() => update(item.id, -1)} aria-label={`Remove one ${item.name}`}><Minus /></button><b>{quantity}</b><button onClick={() => update(item.id, 1)} disabled={quantity >= 99} aria-label={`Add one ${item.name}`}><Plus /></button></div>}</div></div></article>
 }
 
-function CartPanel({ cart, update, total, close }: { cart: Cart; update: (id: number, delta: number) => void; total: number; close: () => void }) {
-  const selected = menuItems.filter(i => cart[i.id] > 0)
-  const [placed, setPlaced] = useState(false)
-  return <div className="overlay" onMouseDown={e => e.target === e.currentTarget && close()}><aside className="cart-panel">{placed ? <div className="order-success"><div><Check /></div><p>ORDER CONFIRMED</p><h2>You’re all set!</h2><span>We’ve sent order <b>KJ-1049</b> to the kitchen.</span><button onClick={close}>Done</button></div> : <><div className="panel-head"><div><small>TABLE 01</small><h2>Your order</h2></div><button onClick={close}><X /></button></div><div className="cart-lines">{selected.map(item => <div className="cart-line" key={item.id}><div className="line-art" style={{ background: item.color }}>{item.emoji}</div><div><b>{item.name}</b><span>{peso(item.price)}</span></div><div className="quantity"><button onClick={() => update(item.id, -1)}><Minus /></button><b>{cart[item.id]}</b><button onClick={() => update(item.id, 1)}><Plus /></button></div></div>)}</div><label className="note-label">Add a note for the kitchen<textarea placeholder="e.g. Less ice, no sugar..." /></label><div className="cart-total"><span>Subtotal</span><b>{peso(total)}</b><small>Payment is made at the counter.</small></div><button className="place-order" disabled={!selected.length} onClick={() => setPlaced(true)}>Place order <ArrowRight /></button></>}</aside></div>
+function CartPanel({ items, tableLabel, cart, update, total, close }: { items: MenuItem[]; tableLabel: string; cart: Cart; update: (id: string, delta: number) => void; total: number; close: () => void }) {
+  const selected = items.filter(item => cart[item.id] > 0)
+  return <div className="overlay" onMouseDown={e => e.target === e.currentTarget && close()}><aside className="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+    <div className="panel-head"><div><small>{tableLabel}</small><h2 id="cart-title">Your order</h2></div><button onClick={close} aria-label="Close cart"><X /></button></div>
+    <div className="cart-lines">{selected.map(item => <div className="cart-line" key={item.id}><div className="line-art" style={{ background: item.color }}>{item.emoji}</div><div><b>{item.name}</b><span>{peso(item.price)}</span></div><div className="quantity"><button onClick={() => update(item.id, -1)} aria-label={`Remove one ${item.name}`}><Minus /></button><b>{cart[item.id]}</b><button onClick={() => update(item.id, 1)} disabled={cart[item.id] >= 99} aria-label={`Add one ${item.name}`}><Plus /></button></div></div>)}{!selected.length && <p>Your cart is empty. Add something from the menu.</p>}</div>
+    <div className="cart-total"><span>Subtotal</span><b>{peso(total)}</b><small>Online ordering is coming soon. Please place your order with a staff member.</small></div>
+    <button className="place-order" onClick={close}>Continue browsing <ArrowRight /></button>
+  </aside></div>
 }
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
@@ -150,7 +206,7 @@ export default function App() {
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
-  if (location.pathname.startsWith('/order/')) return <OrderPage />
+  if (location.pathname.startsWith('/order/')) return <OrderPage key={location.pathname + location.search} />
   if (location.pathname === '/login') return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
   if (location.pathname.startsWith('/dashboard')) return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
   return <Landing onNavigate={go} />
