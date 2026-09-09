@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import logoColor from './assets/logocolor.svg'
 import logoWhite from './assets/logowhite.svg'
+import logoAnimated from './assets/animated logo.svg'
 import './landing.css'
 
 type LandingProps = { onNavigate: (path: string) => void }
@@ -33,7 +34,7 @@ function ProductPreview({ onNavigate }: LandingProps) {
   return <div className={`lp-product ${tapped ? 'is-tapped' : ''}`}>
     <div className="lp-product-grid" aria-hidden="true" />
     <div className="lp-sun" aria-hidden="true"><div /><div /></div>
-    <img className="lp-hero-firefly" src={logoColor} alt="" aria-hidden="true" />
+    <img className="lp-hero-firefly" src={tapped ? logoAnimated : logoColor} alt="" aria-hidden="true" />
     <div className="lp-product-note"><span /> A little tech. A little magic.</div>
 
     <div className="lp-phone">
@@ -155,11 +156,23 @@ export default function Landing({ onNavigate }: LandingProps) {
 
       <section className="lp-local lp-shell lp-section" aria-labelledby="local-title"><div className="lp-local-image"><img src="/images/cafe.jpg" alt="A welcoming café with warm lighting and places to gather" width="1200" height="800" loading="lazy" /><span className="lp-local-tag"><img src={logoColor} width="30" height="33" alt="" />A little connection goes a long way.</span></div><div className="lp-local-copy"><p className="lp-kicker"><span /> ROOTED IN THE EVERYDAY</p><h2 id="local-title">For the places<br />that bring us<br /><span>together.</span></h2><p>The neighborhood café. Your go-to lunch spot. The little food stall with a big following.</p><p>AliTapTap is made for local businesses and the people who make them special. Thoughtful technology, with a human touch.</p><div className="lp-local-signoff"><Leaf size={18} /><span>Built with care in the Philippines.</span></div></div></section>
 
-      <section className="lp-faq lp-shell lp-section" id="faq" aria-labelledby="faq-title"><div><p className="lp-kicker"><span /> A LITTLE MORE CLARITY</p><h2 id="faq-title">Good questions.<br />Simple answers.</h2><p>Getting to know your next little upgrade.</p><img className="lp-faq-firefly" src={logoColor} width="80" height="88" alt="" /></div><div className="lp-questions">{questions.map((item, index) => <details key={item.question} className="lp-question"><summary><span className="lp-question-number">0{index + 1}</span><span>{item.question}</span><Plus size={18} className="lp-faq-plus" /><Minus size={18} className="lp-faq-minus" /></summary><p>{item.answer}</p></details>)}</div></section>
+      <section className="lp-faq lp-shell lp-section" id="faq" aria-labelledby="faq-title"><div><p className="lp-kicker"><span /> A LITTLE MORE CLARITY</p><h2 id="faq-title">Good questions.<br />Simple answers.</h2><p>Getting to know your next little upgrade.</p><img className="lp-faq-firefly" src={logoAnimated} width="80" height="88" alt="" /></div><div className="lp-questions">{questions.map((item, index) => <details key={item.question} className="lp-question"><summary><span className="lp-question-number">0{index + 1}</span><span>{item.question}</span><Plus size={18} className="lp-faq-plus" /><Minus size={18} className="lp-faq-minus" /></summary><p>{item.answer}</p></details>)}</div></section>
 
       <section className="lp-final-cta lp-shell" aria-labelledby="cta-title"><div className="lp-cta-art" aria-hidden="true"><img src={logoColor} alt="" /></div><div><p className="lp-kicker">YOUR NEXT CHAPTER STARTS HERE</p><h2 id="cta-title">Good things are<br />just a tap away.</h2><p>Take a little look. See what a little tap can do.</p><button className="lp-button" onClick={() => onNavigate(demoPath)}>Give AliTapTap a try <ArrowUpRight size={19} /></button></div><span className="lp-cta-note">No download. No sign-up. Just explore.</span><ArrowUpRight className="lp-cta-arrow" size={160} strokeWidth={.7} aria-hidden="true" /></section>
     </main>
 
-    <footer className="lp-footer"><div className="lp-shell"><div className="lp-footer-top"><div><Brand /><p>A little tap. A brighter connection.</p></div><nav aria-label="Footer navigation"><a href="#how">How it works</a><a href="#business">For businesses</a><a href="#faq">FAQs</a><button onClick={() => onNavigate('/login')}>Staff login <ArrowUpRight size={14} /></button></nav></div><div className="lp-footer-bottom"><p>© {new Date().getFullYear()} AliTapTap. All rights reserved.</p><span><span /> Thoughtfully made in the Philippines.</span><a href="#main-content">Back to top <ArrowUpRight size={14} /></a></div></div></footer>
+    <footer className="lp-footer">
+      <div className="lp-shell">
+        <div className="lp-footer-top"><div><Brand /><p>A little tap. A brighter connection.</p></div>
+        <nav aria-label="Footer navigation"><a href="#how">How it works</a><a href="#business">For businesses</a><a href="#faq">FAQs</a><button onClick={() => onNavigate('/login')}>Staff login <ArrowUpRight size={14} /></button></nav>
+      </div>
+      <div className="lp-footer-bottom">
+        <p>© {new Date().getFullYear()} AliTapTap. All rights reserved.</p>
+        <span>
+         Thoughtfully made in the Philippines.
+        </span>
+        <a href="#main-content">Back to top <ArrowUpRight size={14} /></a></div>
+      </div>
+    </footer>
   </div>
 }
