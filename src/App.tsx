@@ -1,30 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  ArrowRight, BarChart3, Bell, Check, ChevronLeft, ChevronRight,
-  CircleUserRound, Clock3, Eye, EyeOff, LayoutDashboard, LockKeyhole,
+  ArrowRight, BarChart3, Bell, ChevronLeft, ChevronRight,
+  CircleUserRound, Eye, EyeOff, LayoutDashboard, LockKeyhole,
   LogOut, Mail, Minus, Plus, ShoppingBag, Sparkles,
   Table2, UtensilsCrossed, WalletCards, X, Zap,
 } from 'lucide-react'
 import { peso } from './data'
 import { loadMenu, MenuError, type MenuItem, type StoreMenu } from './lib/menu'
+import { go } from './lib/navigate'
+import { getSupabase } from './lib/supabase'
+import { useSession, useRedirectIfSignedIn } from './lib/session'
+import { getStoreSetupCounts, type OwnedStore } from './lib/store'
 import logoColor from './assets/logocolor.svg'
 import logoWhite from './assets/logowhite.svg'
 import Landing from './Landing'
+import Signup from './Signup'
+import Onboarding from './Onboarding'
 
 type Cart = Record<string, number>
-type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Completed'
-type DemoOrder = { code: string; table: string; items: string; total: number; age: string; status: OrderStatus }
-
-const initialOrders: DemoOrder[] = [
-  { code: 'KJ-1048', table: 'Table 04', items: '2× Spanish Latte, 1× Ube Ensaymada', total: 385, age: '2 min', status: 'New' },
-  { code: 'KJ-1047', table: 'Table 01', items: '1× Tablea Mocha, 1× Tuna Pandesal', total: 275, age: '6 min', status: 'Preparing' },
-  { code: 'KJ-1046', table: 'Counter', items: '2× Mango Iced Tea', total: 250, age: '11 min', status: 'Ready' },
-  { code: 'KJ-1045', table: 'Table 02', items: '1× Sea Salt Latte, 1× Banana Loaf', total: 240, age: '18 min', status: 'Completed' },
-]
 
 const DEMO_EMAIL = 'staff@kapenijuan.ph'
 const DEMO_PASSWORD = 'tapcard123'
-const SESSION_KEY = 'tapcard_staff_session'
 
 function Logo({ light = false, compact = false }: { light?: boolean; compact?: boolean }) {
   return <button className={`logo ${light ? 'logo-light' : ''} ${compact ? 'logo-compact' : ''}`} onClick={() => go('/')} aria-label="AliTapTap home">
@@ -35,31 +31,23 @@ function Logo({ light = false, compact = false }: { light?: boolean; compact?: b
   </button>
 }
 
-function go(path: string) {
-  window.history.pushState({}, '', path)
-  window.dispatchEvent(new PopStateEvent('popstate'))
-  window.scrollTo({ top: 0, behavior: 'instant' })
-}
+function LoginPage() {
+  const session = useSession()
+  useRedirectIfSignedIn(session)
 
-function hasStaffSession() {
-  return localStorage.getItem(SESSION_KEY) === 'active'
-}
-
-function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState(DEMO_EMAIL)
-  const [password, setPassword] = useState(DEMO_PASSWORD)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (email.trim().toLowerCase() !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
-      setError('That email or password doesn’t match the demo account.')
-      return
-    }
-    localStorage.setItem(SESSION_KEY, 'active')
-    onLogin()
-    go('/dashboard/orders')
+    setSubmitting(true)
+    setError('')
+    const { error: signInError } = await getSupabase().auth.signInWithPassword({ email, password })
+    setSubmitting(false)
+    if (signInError) setError('That email or password doesn’t match an account.')
   }
 
   return <main className="login-page">
@@ -69,13 +57,8 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
         <span className="story-label"><Sparkles size={14} /> STAFF WORKSPACE</span>
         <h1>Every order,<br /><em>right on cue.</em></h1>
         <p>Stay in sync from the first tap to the final serve. Simple, clear, and ready for the rush.</p>
-        <div className="story-order">
-          <span className="story-check"><Check /></span>
-          <div><small>ORDER KJ-1048</small><b>New order from Table 04</b><p>2× Spanish Latte · 1× Ube Ensaymada</p></div>
-          <span>Just now</span>
-        </div>
       </div>
-      <p className="story-footer">TapCard for Kape ni Juan</p>
+      <p className="story-footer">TapCard for small food businesses</p>
     </section>
     <section className="login-form-side">
       <button className="login-back" onClick={() => go('/')}><ChevronLeft /> Back to TapCard</button>
@@ -86,12 +69,11 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
         <p className="form-intro">Manage orders, update your menu, and keep service moving.</p>
         <label>Email address<div className="field"><Mail /><input value={email} onChange={e => { setEmail(e.target.value); setError('') }} type="email" autoComplete="email" required /></div></label>
         <label>Password<div className="field"><LockKeyhole /><input value={password} onChange={e => { setPassword(e.target.value); setError('') }} type={showPassword ? 'text' : 'password'} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff /> : <Eye />}</button></div></label>
-        <div className="form-options"><label><input type="checkbox" defaultChecked /> Keep me signed in</label><button type="button">Forgot password?</button></div>
         {error && <p className="login-error">{error}</p>}
-        <button className="sign-in" type="submit">Sign in <ArrowRight /></button>
+        <button className="sign-in" type="submit" disabled={submitting}>{submitting ? 'Signing in…' : <>Sign in <ArrowRight /></>}</button>
         <div className="demo-access"><span><LockKeyhole /></span><div><b>Demo staff access</b><p>Email: {DEMO_EMAIL}<br />Password: {DEMO_PASSWORD}</p></div></div>
       </form>
-      <p className="login-help">Need help? <button type="button">Contact support</button></p>
+      <p className="login-help">Don’t have a store yet? <button type="button" onClick={() => go('/signup')}>Sign up</button></p>
     </section>
   </main>
 }
@@ -115,8 +97,8 @@ function OrderPage() {
 
     async function fetchMenu() {
       try {
-        const { supabase } = await import('./lib/supabase')
-        const menu = await loadMenu(supabase, slug, tableCode, controller.signal)
+        const { getSupabase } = await import('./lib/supabase')
+        const menu = await loadMenu(getSupabase(), slug, tableCode, controller.signal)
         if (current) setState({ status: 'ready', menu })
       } catch (error) {
         if (current) setState({
@@ -184,30 +166,64 @@ function CartPanel({ items, tableLabel, cart, update, total, close }: { items: M
   </aside></div>
 }
 
-function Dashboard({ onLogout }: { onLogout: () => void }) {
-  const [orders, setOrders] = useState(initialOrders)
-  const statuses: OrderStatus[] = ['New', 'Preparing', 'Ready', 'Completed']
-  const advance = (code: string) => setOrders(old => old.map(o => { const n = statuses.indexOf(o.status); return o.code === code && n < 3 ? { ...o, status: statuses[n + 1] } : o }))
-  const counts = useMemo(() => Object.fromEntries(statuses.map(s => [s, orders.filter(o => o.status === s).length])), [orders])
-  return <main className="dashboard"><aside className="sidebar"><Logo light compact /><nav><button><LayoutDashboard />Overview</button><button className="active"><ShoppingBag />Orders<span>{counts.New}</span></button><button><UtensilsCrossed />Menu</button><button><Table2 />Tables</button><button><BarChart3 />Reports</button></nav><div className="side-profile"><div>KJ</div><span><b>Kape ni Juan</b><small>Admin account</small></span><button className="logout-button" title="Sign out" onClick={() => { localStorage.removeItem(SESSION_KEY); onLogout(); go('/login') }}><LogOut /></button></div></aside>
-    <section className="dash-main"><header><div><p>FRIDAY, SEPTEMBER 4</p><h1>Good afternoon, Juan.</h1></div><div className="dash-actions"><button><Bell /><i /></button><button><CircleUserRound /> Juan <ChevronRight /></button></div></header>
-      <div className="stats"><article><span className="stat-icon peach"><ShoppingBag /></span><div><small>TODAY’S ORDERS</small><b>24</b><em>↑ 12% from yesterday</em></div></article><article><span className="stat-icon mint"><WalletCards /></span><div><small>TODAY’S SALES</small><b>₱3,840</b><em>↑ 8% from yesterday</em></div></article><article><span className="stat-icon butter"><Zap /></span><div><small>NEW ORDERS</small><b>{counts.New}</b><em>Needs your attention</em></div></article></div>
-      <div className="board-head"><div><h2>Live orders</h2><span><i /> Live updates</span></div><p>Drag or use the action button to move orders along.</p></div>
-      <div className="order-board">{statuses.map(status => <section className="order-column" key={status}><header><span className={`status-dot ${status.toLowerCase()}`} />{status}<b>{counts[status]}</b></header><div className="column-body">{orders.filter(o => o.status === status).map(o => <article className="order-card" key={o.code}><div className="order-meta"><b>{o.code}</b><span><Clock3 /> {o.age}</span></div><h3>{o.table}</h3><p>{o.items}</p><div className="order-total"><b>{peso(o.total)}</b>{status !== 'Completed' && <button onClick={() => advance(o.code)}>{status === 'New' ? 'Start preparing' : status === 'Preparing' ? 'Mark ready' : 'Complete'} <ChevronRight /></button>}</div></article>)}{!orders.some(o => o.status === status) && <div className="empty-column">No orders here</div>}</div></section>)}</div>
+function SetupBanner({ menuItemCount, tableCount }: { menuItemCount: number; tableCount: number }) {
+  if (menuItemCount > 0 && tableCount > 0) return null
+  const missing = menuItemCount === 0 && tableCount === 0 ? 'menu items or tables' : menuItemCount === 0 ? 'menu items' : 'tables'
+  return <div className="setup-banner">
+    <span>Your store has no {missing} yet — finish setting up to start taking orders.</span>
+    <button onClick={() => go('/onboarding')}>Finish setup</button>
+  </div>
+}
+
+function Dashboard({ store, onLogout }: { store: OwnedStore; onLogout: () => void }) {
+  const [counts, setCounts] = useState<{ menuItemCount: number; tableCount: number } | null>(null)
+  const statuses = ['New', 'Preparing', 'Ready', 'Completed'] as const
+  const initials = store.name.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('')
+
+  useEffect(() => {
+    let current = true
+    getStoreSetupCounts(getSupabase(), store.id).then(value => { if (current) setCounts(value) })
+    return () => { current = false }
+  }, [store.id])
+
+  return <main className="dashboard">
+    <aside className="sidebar"><Logo light compact /><nav><button><LayoutDashboard />Overview</button><button className="active"><ShoppingBag />Orders</button><button><UtensilsCrossed />Menu</button><button><Table2 />Tables</button><button><BarChart3 />Reports</button></nav><div className="side-profile"><div>{initials}</div><span><b>{store.name}</b><small>Owner account</small></span><button className="logout-button" title="Sign out" onClick={async () => { await getSupabase().auth.signOut(); onLogout() }}><LogOut /></button></div></aside>
+    <section className="dash-main">
+      <header><div><h1>{store.name}</h1></div><div className="dash-actions"><button><Bell /></button><button><CircleUserRound /> {initials} <ChevronRight /></button></div></header>
+      {counts && <SetupBanner menuItemCount={counts.menuItemCount} tableCount={counts.tableCount} />}
+      <div className="stats">
+        <article><span className="stat-icon peach"><ShoppingBag /></span><div><small>TODAY’S ORDERS</small><b>0</b><em>No orders yet</em></div></article>
+        <article><span className="stat-icon mint"><WalletCards /></span><div><small>TODAY’S SALES</small><b>{peso(0)}</b><em>No orders yet</em></div></article>
+        <article><span className="stat-icon butter"><Zap /></span><div><small>NEW ORDERS</small><b>0</b><em>Needs your attention</em></div></article>
+      </div>
+      <div className="board-head"><div><h2>Live orders</h2><span><i /> Live updates</span></div><p>Orders will appear here in real time once customers start ordering.</p></div>
+      <div className="order-board">{statuses.map(status => <section className="order-column" key={status}><header><span className={`status-dot ${status.toLowerCase()}`} />{status}<b>0</b></header><div className="column-body"><div className="empty-column">No orders yet</div></div></section>)}</div>
     </section>
   </main>
 }
 
+function DashboardGate() {
+  const session = useSession()
+  useEffect(() => {
+    if (session.status === 'signed-out') go('/login')
+    else if (session.status === 'signed-in' && !session.store) go('/onboarding')
+  }, [session])
+  if (session.status !== 'signed-in' || !session.store) return <main className="dashboard" />
+  return <Dashboard store={session.store} onLogout={() => go('/login')} />
+}
+
 export default function App() {
   const [, render] = useState(0)
-  const [authenticated, setAuthenticated] = useState(hasStaffSession)
   useEffect(() => {
     const onPopState = () => render(value => value + 1)
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
-  if (location.pathname.startsWith('/order/')) return <OrderPage key={location.pathname + location.search} />
-  if (location.pathname === '/login') return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
-  if (location.pathname.startsWith('/dashboard')) return authenticated ? <Dashboard onLogout={() => setAuthenticated(false)} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
+  const path = location.pathname
+  if (path.startsWith('/order/')) return <OrderPage key={path + location.search} />
+  if (path === '/signup') return <Signup />
+  if (path === '/onboarding') return <Onboarding />
+  if (path === '/login') return <LoginPage />
+  if (path.startsWith('/dashboard')) return <DashboardGate />
   return <Landing onNavigate={go} />
 }
